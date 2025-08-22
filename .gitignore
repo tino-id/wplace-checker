@@ -1,0 +1,8 @@
+.idea
+vendor
+
+projects/*
+!projects/_example
+
+config/*
+!config/*.example.yaml
