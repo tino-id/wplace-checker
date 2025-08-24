@@ -6,3 +6,5 @@ projects/*
 
 config/*
 !config/*.example.yaml
+
+downloaded_image_*.png
