@@ -161,6 +161,9 @@ class TileDownloader
         imagealphablending($canvas, false);
         imagesavealpha($canvas, true);
 
+        $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
+        imagefill($canvas, 0, 0, $transparent);
+
         return $canvas;
     }
 

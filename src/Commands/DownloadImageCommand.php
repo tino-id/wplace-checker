@@ -11,9 +11,8 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'download-image', description: 'Download and crop image from tiles')]
-class DownloadImageCommand extends Command
+class DownloadImageCommand extends AbstractCommand
 {
-    private OutputInterface $output;
     private TileDownloader $tileDownloader;
 
     public function __construct()
@@ -51,6 +50,7 @@ class DownloadImageCommand extends Command
 
         try {
             $remoteImage = $this->downloadTiles($tileX, $tileY, $pixelX, $pixelY, $width, $height);
+
             
             if (!$remoteImage) {
                 $this->error('Failed to download tiles');
@@ -65,7 +65,7 @@ class DownloadImageCommand extends Command
                 return Command::FAILURE;
             }
 
-            $filename = $this->saveImage($croppedImage, $tileX, $tileY, $pixelX, $pixelY, $width, $height);
+            $filename = $this->saveImage($croppedImage);
             
             if ($filename) {
                 $this->info('Image saved as: ' . $filename);
@@ -79,10 +79,10 @@ class DownloadImageCommand extends Command
 
         } catch (\Exception $e) {
             $this->error('Error: ' . $e->getMessage());
-            return Command::FAILURE;
+            return self::FAILURE;
         }
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 
     private function downloadTiles(int $tileX, int $tileY, int $pixelX, int $pixelY, int $width, int $height): ?Image
@@ -94,7 +94,14 @@ class DownloadImageCommand extends Command
             'offsetY' => $pixelY,
         ];
 
-        $dummyImage = new Image($width, $height, imagecreatetruecolor($width, $height));
+        $dummyGdImage = imagecreatetruecolor($width, $height);
+        imagealphablending($dummyGdImage, false);
+        imagesavealpha($dummyGdImage, true);
+
+        $transparent = imagecolorallocatealpha($dummyGdImage, 0, 0, 0, 127);
+        imagefill($dummyGdImage, 0, 0, $transparent);
+
+        $dummyImage = new Image($width, $height, $dummyGdImage);
         
         try {
             $remoteImage = $this->tileDownloader->createRemoteImage($dummyImage, $config);
@@ -113,6 +120,9 @@ class DownloadImageCommand extends Command
         imagealphablending($croppedImage, false);
         imagesavealpha($croppedImage, true);
 
+        $transparent = imagecolorallocatealpha($croppedImage, 0, 0, 0, 127);
+        imagefill($croppedImage, 0, 0, $transparent);
+
         $success = imagecopy(
             $croppedImage,
             $sourceImage->getImage(),
@@ -127,30 +137,15 @@ class DownloadImageCommand extends Command
         return $success ? $croppedImage : null;
     }
 
-    private function saveImage(\GdImage $image, int $tileX, int $tileY, int $pixelX, int $pixelY, int $width, int $height): ?string
+    private function saveImage(\GdImage $image): ?string
     {
-        $filename = sprintf(
-            'downloaded_image_t%d_%d_p%d_%d_s%dx%d_%s.png',
-            $tileX, $tileY, $pixelX, $pixelY, $width, $height,
-            date('Y-m-d_H-i-s')
-        );
-        
-        $filepath = getcwd() . DIRECTORY_SEPARATOR . $filename;
+        $filename = date('Y-m-d_H-i-s').'.png';
+        $filepath = __DIR__ . DS . '..' . DS . '..' . DS . $filename;
         
         if (imagepng($image, $filepath)) {
             return $filename;
         }
         
         return null;
-    }
-
-    private function info(string $message): void
-    {
-        $this->output->writeln('<info>[INF] ' . date('Y-m-d H:i:s ') . $message . '</info>');
-    }
-
-    private function error(string $message): void
-    {
-        $this->output->writeln('<error>[ERR] ' . date('Y-m-d H:i:s ') . $message . '</error>');
     }
 }
