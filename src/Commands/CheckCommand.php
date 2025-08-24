@@ -1,23 +1,23 @@
 <?php
 
-namespace App;
+namespace App\Commands;
 
+use App\Image;
+use App\Pushover;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
 
-define('DS', DIRECTORY_SEPARATOR);
-
 #[AsCommand(name: 'check', description: 'check placed artworks from projects directory')]
-class CheckCommand extends Command
+class CheckCommand extends AbstractCommand
 {
-    private OutputInterface $output;
+
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
     private ?Pushover       $pushover = null;
+    private ?array          $colors   = null;
 
     public function __construct()
     {
@@ -25,7 +25,7 @@ class CheckCommand extends Command
         $this->tileDownloader  = new TileDownloader();
         $this->imageComparator = new ImageComparator();
 
-        $pushoverConfigFile = __DIR__ . DS . '..' . DS . 'config' . DS . 'pushover.yaml';
+        $pushoverConfigFile = __DIR__ . DS . '..' . DS . '..' . DS . 'config' . DS . 'pushover.yaml';
 
         if (file_exists($pushoverConfigFile)) {
             $pushoverConfig = Yaml::parseFile($pushoverConfigFile);
@@ -37,7 +37,7 @@ class CheckCommand extends Command
     {
         $this->output = $output;
 
-        $projects = glob(__DIR__ . '/../projects/*');
+        $projects = glob(__DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . '*');
 
         foreach ($projects as $projectDir) {
             $project = basename($projectDir);
@@ -65,7 +65,7 @@ class CheckCommand extends Command
 
         $this->tileDownloader->clearCache();
 
-        return Command::SUCCESS;
+        return self::SUCCESS;
     }
 
     private function processProject(string $project, string $projectDir): void
@@ -107,9 +107,13 @@ class CheckCommand extends Command
 
         $this->error('First ' . count($result['differences']) . ' differences:');
         foreach ($result['differences'] as $diff) {
-            $this->error(
-                "{$diff['positionLocal']}: {$diff['colorLocal']} / {$diff['positionRemote']}: {$diff['colorRemote']}"
-            );
+            $message =
+                'Local (' . $diff['positionLocal']['x'] . ',' . $diff['positionLocal']['y'] . '): ' .
+                $diff['colorLocal']['red'] . ',' . $diff['colorLocal']['green'] . ',' . $diff['colorLocal']['blue'] . ' / ' .
+                'Remote (' . $diff['positionRemote']['x'] . ',' . $diff['positionRemote']['y'] . '): ' .
+                $diff['colorRemote']['red'] . ',' . $diff['colorRemote']['green'] . ',' . $diff['colorRemote']['blue'];
+
+            $this->error($message);
         }
 
         if ($this->pushover !== null) {
@@ -140,6 +144,7 @@ class CheckCommand extends Command
 
         if (isset($config['disabled']) && $config['disabled']) {
             $this->info('Project is disabled');
+
             return null;
         }
 
@@ -172,7 +177,6 @@ class CheckCommand extends Command
 
         return $config;
     }
-
 
     private function fetchLocalImage(array $config): ?Image
     {
@@ -223,22 +227,5 @@ class CheckCommand extends Command
         $this->pushover->send($message, $croppedImagePath);
 
         unlink($croppedImagePath);
-    }
-
-    private function info(string $message)
-    {
-        $this->output->writeln('<info>[INF] ' . date('Y-m-d H:i:s ') . $message . '</info>');
-    }
-
-    private function error(string $message)
-    {
-        $this->output->writeln('<error>[ERR] ' . date('Y-m-d H:i:s ') . $message . '</error>');
-    }
-
-    private function debug(string $message)
-    {
-        if ($this->output->isDebug()) {
-            $this->output->writeln('<comment>[DBG] ' . date('Y-m-d H:i:s ') . $message . '</comment>');
-        }
     }
 }

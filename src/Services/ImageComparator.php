@@ -8,7 +8,7 @@ class ImageComparator
 {
     private int $maxDifferencesToReport;
 
-    public function __construct(int $maxDifferencesToReport = 10)
+    public function __construct(int $maxDifferencesToReport = 100)
     {
         $this->maxDifferencesToReport = $maxDifferencesToReport;
     }
@@ -74,15 +74,15 @@ class ImageComparator
     private function createDifferenceRecord(int $x, int $y, array $localRgb, array $remoteRgb, array $config): array
     {
         return [
-            'positionLocal' => "({$x}, {$y})",
-            'positionRemote' => "(" . ($x + $config['offsetX']) . ", " . ($y + $config['offsetY']) . ")",
-            'colorLocal' => $this->formatRgb($localRgb),
-            'colorRemote' => $this->formatRgb($remoteRgb),
+            'positionLocal' => ['x' => $x, 'y' => $y],
+            'positionRemote' => ['x' => $x + $config['offsetX'], 'y' => $y + $config['offsetY']],
+            'colorLocal' => $localRgb,
+            'colorRemote' => $remoteRgb,
         ];
     }
 
-    private function formatRgb(array $rgba): string
+    public function setMaxDifferencesToReport(int $maxDifferencesToReport): void
     {
-        return "RGB({$rgba['red']}, {$rgba['green']}, {$rgba['blue']})";
+        $this->maxDifferencesToReport = $maxDifferencesToReport;
     }
 }
