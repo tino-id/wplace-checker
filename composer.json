@@ -1,5 +1,7 @@
 {
     "require": {
+        "php": "^8.0",
+        "ext-gd": "*",
         "symfony/console": "^7.3",
         "symfony/yaml": "^7.3"
     },
