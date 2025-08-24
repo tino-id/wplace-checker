@@ -106,7 +106,8 @@ class FixStringCommand extends AbstractCommand
         }
 
         $fixMessage = '{"colors": [' . implode(',', $fix['colors']) . '], "coords":[' . implode(',', $fix['coords']) . ']}';
-        $this->info('Fix: ' . $fixMessage);
+        $this->output->writeln('');
+        $this->output->writeln($fixMessage);
     }
 
     private function readConfig(string $project, string $projectDir): ?array
@@ -125,12 +126,6 @@ class FixStringCommand extends AbstractCommand
 
         if (!$config) {
             $this->error('Invalid config found for project: ' . $project);
-        }
-
-        if (isset($config['disabled']) && $config['disabled']) {
-            $this->info('Project is disabled');
-
-            return null;
         }
 
         $mandatoryKeys = [
