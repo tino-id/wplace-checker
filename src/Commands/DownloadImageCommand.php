@@ -139,7 +139,7 @@ class DownloadImageCommand extends AbstractCommand
 
     private function saveImage(\GdImage $image): ?string
     {
-        $filename = date('Y-m-d_H-i-s').'.png';
+        $filename = 'downloaded_image_' . date('Y-m-d_H-i-s').'.png';
         $filepath = __DIR__ . DS . '..' . DS . '..' . DS . $filename;
         
         if (imagepng($image, $filepath)) {
