@@ -7,3 +7,7 @@ RGB Werte und IDs ermitteln und in der `colors.yaml` ergänzen.
 ## fixStringCommand
 
 - String nach Tiles aufteilen
+
+## checkCommand
+
+- createRemoteImage bereits anhand der Konfiguration croppen

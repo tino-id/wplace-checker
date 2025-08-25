@@ -13,14 +13,17 @@ class TileDownloader
     private int $timeout;
     private string $userAgent;
     private array $tileCache = [];
+    private ImageService $imageService;
 
     public function __construct(
+        ImageService $imageService,
         int $tileSizeX = 1000,
         int $tileSizeY = 1000,
         string $tileUrl = 'https://backend.wplace.live/files/s0/tiles/{X}/{Y}.png',
         int $timeout = 30,
         string $userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36'
     ) {
+        $this->imageService = $imageService;
         $this->tileSizeX = $tileSizeX;
         $this->tileSizeY = $tileSizeY;
         $this->tileUrl = $tileUrl;
@@ -42,7 +45,7 @@ class TileDownloader
                     $tileY = $config['tileY'] + $y - 1;
 
                     $tile = $this->getTileWithCache($tileX, $tileY);
-                    
+
                     if (!$tile) {
                         imagedestroy($canvas);
                         throw new Exception("Failed to download tile at ({$tileX}, {$tileY})");
@@ -70,24 +73,24 @@ class TileDownloader
     private function getTileWithCache(int $tileX, int $tileY): ?\GdImage
     {
         $cacheKey = "{$tileX}_{$tileY}";
-        
+
         // Check memory cache first
         if (isset($this->tileCache[$cacheKey])) {
             return $this->loadTileFromCache($this->tileCache[$cacheKey]);
         }
-        
+
         // Download tile
         $tile = $this->downloadTile($tileX, $tileY);
-        
+
         if ($tile) {
             // Cache the tile
             $cacheFile = $this->cacheTile($tile, $cacheKey);
             $this->tileCache[$cacheKey] = $cacheFile;
-            
+
             // Return a copy since the original will be destroyed
             return $this->loadTileFromCache($cacheFile);
         }
-        
+
         return null;
     }
 
@@ -95,7 +98,7 @@ class TileDownloader
     {
         $cacheFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . "tile_cache_{$cacheKey}.png";
         imagepng($tile, $cacheFile);
-        
+
         return $cacheFile;
     }
 
@@ -104,7 +107,7 @@ class TileDownloader
         if (!file_exists($cacheFile)) {
             return null;
         }
-        
+
         $tile = imagecreatefrompng($cacheFile);
         return $tile !== false ? $tile : null;
     }
@@ -112,7 +115,7 @@ class TileDownloader
     private function downloadTile(int $tileX, int $tileY): ?\GdImage
     {
         $url = $this->buildTileUrl($tileX, $tileY);
-        
+
         try {
             $context = $this->createHttpContext();
             $tileData = file_get_contents($url, false, $context);
@@ -156,15 +159,8 @@ class TileDownloader
     {
         $width = $tilesX * $this->tileSizeX;
         $height = $tilesY * $this->tileSizeY;
-        
-        $canvas = imagecreatetruecolor($width, $height);
-        imagealphablending($canvas, false);
-        imagesavealpha($canvas, true);
 
-        $transparent = imagecolorallocatealpha($canvas, 0, 0, 0, 127);
-        imagefill($canvas, 0, 0, $transparent);
-
-        return $canvas;
+        return $this->imageService->createTransparentImage($width, $height);
     }
 
     private function isValidTile(\GdImage $tile): bool
@@ -193,7 +189,7 @@ class TileDownloader
                 unlink($cacheFile);
             }
         }
-        
+
         $this->tileCache = [];
     }
 

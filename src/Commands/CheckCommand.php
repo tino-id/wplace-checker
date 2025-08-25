@@ -13,7 +13,6 @@ use Symfony\Component\Yaml\Yaml;
 #[AsCommand(name: 'check', description: 'check placed artworks from projects directory')]
 class CheckCommand extends AbstractCommand
 {
-
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
     private ?Pushover       $pushover = null;
@@ -22,7 +21,7 @@ class CheckCommand extends AbstractCommand
     public function __construct()
     {
         parent::__construct();
-        $this->tileDownloader  = new TileDownloader();
+        $this->tileDownloader  = new TileDownloader($this->imageService);
         $this->imageComparator = new ImageComparator();
 
         $pushoverConfigFile = __DIR__ . DS . '..' . DS . '..' . DS . 'config' . DS . 'pushover.yaml';
@@ -70,19 +69,22 @@ class CheckCommand extends AbstractCommand
 
     private function processProject(string $project, string $projectDir): void
     {
-        $config = $this->readConfig($project, $projectDir);
+        try {
+            $config = $this->configService->readProjectConfig($projectDir);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage());
 
-        if (!$config) {
             return;
         }
 
-        $localImage = $this->fetchLocalImage($config);
+        if (!$config || ($config['disableCheck'] ?? false)) {
+            $this->info('Project is disabled or invalid');
 
-        if (!$localImage) {
             return;
         }
 
         try {
+            $localImage = $this->imageService->loadImageFromFile($config['image']);
             $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
         } catch (\Exception $e) {
             $this->error($e->getMessage());
@@ -122,79 +124,6 @@ class CheckCommand extends AbstractCommand
 
         $localImage->destroy();
         $remoteImage->destroy();
-    }
-
-    private function readConfig(string $project, string $projectDir): ?array
-    {
-        $configFile = $projectDir . DS . 'config.yaml';
-        $this->debug('Reading config: ' . $configFile);
-        $config = file_exists($configFile) ? file_get_contents($configFile) : null;
-
-        if (!$config) {
-            $this->error('No config found for project: ' . $project);
-
-            return null;
-        }
-
-        $config = Yaml::parseFile($projectDir . DS . 'config.yaml');
-
-        if (!$config) {
-            $this->error('Invalid config found for project: ' . $project);
-        }
-
-        if (isset($config['disabled']) && $config['disabled']) {
-            $this->info('Project is disabled');
-
-            return null;
-        }
-
-        $mandatoryKeys = [
-            'tileX',
-            'tileY',
-            'offsetX',
-            'offsetY',
-            'image',
-        ];
-
-        foreach ($mandatoryKeys as $key) {
-            if (!isset($config[$key])) {
-                $this->error('Missing "' . $key . '" in config');
-
-                return null;
-            }
-        }
-
-        $imagePath = $projectDir . DS . $config['image'];
-
-        if (!file_exists($imagePath)) {
-            $this->error('Image not found: ' . $imagePath);
-
-            return null;
-        }
-
-        // set absolute path for image
-        $config['image'] = $imagePath;
-
-        return $config;
-    }
-
-    private function fetchLocalImage(array $config): ?Image
-    {
-        if (!file_exists($config['image'])) {
-            $this->error('Image not found: ' . $config['image']);
-
-            return null;
-        }
-
-        $image = imagecreatefrompng($config['image']);
-
-        if (!$image || get_class($image) !== 'GdImage') {
-            $this->error('Could not load image: ' . $config['image']);
-
-            return null;
-        }
-
-        return new Image(imagesx($image), imagesy($image), $image);
     }
 
 

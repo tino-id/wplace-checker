@@ -15,7 +15,6 @@ use Symfony\Component\Yaml\Yaml;
 #[AsCommand(name: 'fix-string', description: 'gets fix string for image')]
 class FixStringCommand extends AbstractCommand
 {
-
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
     private ?Pushover       $pushover = null;
@@ -24,7 +23,7 @@ class FixStringCommand extends AbstractCommand
     public function __construct()
     {
         parent::__construct();
-        $this->tileDownloader  = new TileDownloader();
+        $this->tileDownloader  = new TileDownloader($this->imageService);
         $this->imageComparator = new ImageComparator();
     }
 
@@ -41,45 +40,46 @@ class FixStringCommand extends AbstractCommand
         $this->output = $output;
 
         $project    = $input->getArgument('project');
-        $pixelcount = (int) $input->getArgument('pixelcount');
+        $pixelCount = (int) $input->getArgument('pixelcount');
 
-        $this->imageComparator->setMaxDifferencesToReport($pixelcount);
+        $this->imageComparator->setMaxDifferencesToReport($pixelCount);
 
         $projectDir = __DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . $project;
 
         $output->writeln('');
         $this->info('Processing: <comment>' . $project . '</comment>');
-        $this->processProject($project, $projectDir, $pixelcount);
+        $this->processProject($projectDir);
 
         $this->tileDownloader->clearCache();
 
         return self::SUCCESS;
     }
 
-    private function processProject(string $project, string $projectDir): void
+    private function processProject(string $projectDir): void
     {
-        $config = $this->readConfig($project, $projectDir);
-
-        if (!$config) {
-            return;
-        }
-
-        $localImage = $this->fetchLocalImage($config);
-
-        if (!$localImage) {
-            return;
-        }
-
         try {
-            $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
+            $config = $this->configService->readProjectConfig($projectDir);
+
+            if (!$config) {
+                $this->info('Project is disabled or invalid');
+
+                return;
+            }
         } catch (\Exception $e) {
             $this->error($e->getMessage());
 
             return;
         }
 
-        $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage);
+        try {
+            $localImage = $this->imageService->loadImageFromFile($config['image']);
+            $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
+        } catch (\Exception $e) {
+            $this->error($e->getMessage());
+            return;
+        }
 
+        $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage);
 
         $localImage->destroy();
         $remoteImage->destroy();
@@ -93,8 +93,11 @@ class FixStringCommand extends AbstractCommand
         $fix = ['coords' => [], 'colors' => []];
 
         foreach ($result['differences'] as $diff) {
-            $color = $this->getColor($diff['colorLocal']['red'], $diff['colorLocal']['green'],
-                $diff['colorLocal']['blue']);
+            $color = $this->getColor(
+                $diff['colorLocal']['red'],
+                $diff['colorLocal']['green'],
+                $diff['colorLocal']['blue']
+            );
 
             if ($color === null) {
                 $this->error('Could not find color for: ' . json_encode($diff['colorLocal']));
@@ -110,54 +113,6 @@ class FixStringCommand extends AbstractCommand
         $this->output->writeln($fixMessage);
     }
 
-    private function readConfig(string $project, string $projectDir): ?array
-    {
-        $configFile = $projectDir . DS . 'config.yaml';
-        $this->debug('Reading config: ' . $configFile);
-        $config = file_exists($configFile) ? file_get_contents($configFile) : null;
-
-        if (!$config) {
-            $this->error('No config found for project: ' . $project);
-
-            return null;
-        }
-
-        $config = Yaml::parseFile($projectDir . DS . 'config.yaml');
-
-        if (!$config) {
-            $this->error('Invalid config found for project: ' . $project);
-        }
-
-        $mandatoryKeys = [
-            'tileX',
-            'tileY',
-            'offsetX',
-            'offsetY',
-            'image',
-        ];
-
-        foreach ($mandatoryKeys as $key) {
-            if (!isset($config[$key])) {
-                $this->error('Missing "' . $key . '" in config');
-
-                return null;
-            }
-        }
-
-        $imagePath = $projectDir . DS . $config['image'];
-
-        if (!file_exists($imagePath)) {
-            $this->error('Image not found: ' . $imagePath);
-
-            return null;
-        }
-
-        // set absolute path for image
-        $config['image'] = $imagePath;
-
-        return $config;
-    }
-
     private function getColor(int $r, int $g, int $b): ?int
     {
         if (empty($this->colors)) {
@@ -171,22 +126,4 @@ class FixStringCommand extends AbstractCommand
         return null;
     }
 
-    private function fetchLocalImage(array $config): ?Image
-    {
-        if (!file_exists($config['image'])) {
-            $this->error('Image not found: ' . $config['image']);
-
-            return null;
-        }
-
-        $image = imagecreatefrompng($config['image']);
-
-        if (!$image || get_class($image) !== 'GdImage') {
-            $this->error('Could not load image: ' . $config['image']);
-
-            return null;
-        }
-
-        return new Image(imagesx($image), imagesy($image), $image);
-    }
 }
