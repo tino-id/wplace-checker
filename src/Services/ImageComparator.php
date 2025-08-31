@@ -70,14 +70,15 @@ class ImageComparator
 
     private function colorsMatch(array $color1, array $color2): bool
     {
-        // temp for wave
-        if ($color1['red'] === 232 && $color1['green'] === 212 && $color1['blue'] === 95) {
+        /*if ($color1['red'] !== 60 && $color1['green'] !== 60 && $color1['blue'] !== 60) {
             return true;
         }
+        */
 
         return $color1['red'] === $color2['red'] &&
             $color1['green'] === $color2['green'] &&
-            $color1['blue'] === $color2['blue'];
+            $color1['blue'] === $color2['blue'] &&
+            $color1['alpha'] === $color2['alpha'];
     }
 
     private function createDifferenceRecord(int $x, int $y, array $localRgb, array $remoteRgb, array $config): array

@@ -7,6 +7,9 @@ use App\Pushover;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
 
@@ -16,39 +19,51 @@ class CheckCommand extends AbstractCommand
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
     private ?Pushover       $pushover = null;
-    private ?array          $colors   = null;
 
     public function __construct()
     {
         parent::__construct();
         $this->tileDownloader  = new TileDownloader($this->imageService);
         $this->imageComparator = new ImageComparator();
+    }
+
+    protected function configure(): void
+    {
+        $this
+            ->addArgument('projects', InputArgument::IS_ARRAY, 'check given projects')
+            ->addOption('push', 'p', InputOption::VALUE_OPTIONAL, 'send push messages', "true", ["true", "false"]);
+    }
+
+    public function __invoke(InputInterface $input, OutputInterface $output): int
+    {
+        $this->output = $output;
+        $projects     = $input->getArgument('projects');
+        $sendPush     = $input->getOption('push');
 
         $pushoverConfigFile = __DIR__ . DS . '..' . DS . '..' . DS . 'config' . DS . 'pushover.yaml';
 
-        if (file_exists($pushoverConfigFile)) {
+        if (file_exists($pushoverConfigFile) && $sendPush === 'true') {
             $pushoverConfig = Yaml::parseFile($pushoverConfigFile);
             $this->pushover = new Pushover($pushoverConfig['token'], $pushoverConfig['user']);
         }
-    }
 
-    public function __invoke(OutputInterface $output): int
-    {
-        $this->output = $output;
+        $projectDirs = glob(__DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . '*');
 
-        $projects = glob(__DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . '*');
+        foreach ($projectDirs as $projectDir) {
+            $projectName = basename($projectDir);
 
-        foreach ($projects as $projectDir) {
-            $project = basename($projectDir);
+            if (count($projects) && !in_array($projectName, $projects)) {
+                continue;
+            }
 
-            if (str_starts_with($project, '_') || !is_dir($projectDir)) {
-                $this->debug('Skipping: ' . $project);
+            if (str_starts_with($projectName, '_') || !is_dir($projectDir)) {
+                $this->debug('Skipping: ' . $projectName);
                 continue;
             }
 
             $output->writeln('');
-            $this->info('Processing: <comment>' . $project . '</comment>');
-            $this->processProject($project, $projectDir);
+            $this->info('Processing: <comment>' . $projectName . '</comment>');
+            $this->processProject($projectName, $projectDir);
         }
 
         if ($this->output->isDebug()) {
@@ -67,7 +82,7 @@ class CheckCommand extends AbstractCommand
         return self::SUCCESS;
     }
 
-    private function processProject(string $project, string $projectDir): void
+    private function processProject(string $projectName, string $projectDir): void
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
@@ -84,7 +99,7 @@ class CheckCommand extends AbstractCommand
         }
 
         try {
-            $localImage = $this->imageService->loadImageFromFile($config['image']);
+            $localImage  = $this->imageService->loadImageFromFile($config['image']);
             $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
         } catch (\Exception $e) {
             $this->error($e->getMessage());
@@ -119,7 +134,7 @@ class CheckCommand extends AbstractCommand
         }
 
         if ($this->pushover !== null) {
-            $this->sendPushover($localImage, $remoteImage, $config, $project, $result);
+            $this->sendPushover($localImage, $remoteImage, $config, $projectName, $result);
         }
 
         $localImage->destroy();
@@ -127,8 +142,13 @@ class CheckCommand extends AbstractCommand
     }
 
 
-    private function sendPushover(Image $localImage, Image $remoteImage, array $config, string $project, array $result)
-    {
+    private function sendPushover(
+        Image $localImage,
+        Image $remoteImage,
+        array $config,
+        string $projectName,
+        array $result
+    ) {
         $croppedImage     = imagecreatetruecolor($localImage->getWidth(), $localImage->getHeight());
         $croppedImagePath = tempnam('/tmp', 'cropped-');
 
@@ -145,7 +165,7 @@ class CheckCommand extends AbstractCommand
         imagepng($croppedImage, $croppedImagePath);
         imagedestroy($croppedImage);
 
-        $message = 'Project: ' . $project . "\n";
+        $message = 'Project: ' . $projectName . "\n";
         $message .= sprintf(
             'Übereinstimmende Pixel: %d von %d (%.2f%%)',
             $result['matchingPixels'],

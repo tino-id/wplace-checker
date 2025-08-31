@@ -5,7 +5,7 @@ namespace App\Services;
 class PathService
 {
     private string $rootPath;
-    
+
     public function __construct(?string $rootPath = null)
     {
         $this->rootPath = $rootPath ?? dirname(__DIR__, 2);

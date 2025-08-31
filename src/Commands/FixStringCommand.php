@@ -2,7 +2,6 @@
 
 namespace App\Commands;
 
-use App\Image;
 use App\Pushover;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
