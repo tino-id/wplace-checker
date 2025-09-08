@@ -2,18 +2,22 @@
 
 namespace App\Services;
 
+use App\Dtos\ImageComparisonResult;
+use App\Dtos\ImageComparisonResultDifference;
 use App\Image;
+use Symfony\Component\Yaml\Yaml;
 
 class ImageComparator
 {
-    private int $maxDifferencesToReport;
+    private ?array $colors = null;
+    private PathService $pathService;
 
-    public function __construct(int $maxDifferencesToReport = 100)
+    public function __construct()
     {
-        $this->maxDifferencesToReport = $maxDifferencesToReport;
+        $this->pathService = new PathService();
     }
 
-    public function compareImages(array $config, Image $localImage, Image $remoteImage): array
+    public function compareImages(array $config, Image $localImage, Image $remoteImage, int $pixelCount = 0, ?array $availableColors = null): ImageComparisonResult
     {
         $matchingPixels = 0;
         $totalPixels    = 0;
@@ -42,25 +46,23 @@ class ImageComparator
                     continue;
                 }
 
-                // Record difference if we haven't reached the limit
-                if (count($differences) < $this->maxDifferencesToReport) {
-                    $differences[] = $this->createDifferenceRecord(
-                        $x,
-                        $y,
-                        $localRgb,
-                        $remoteRgb,
-                        $config
-                    );
+                if (count($differences) < $pixelCount) {
+                    $colorId = $this->getColorId($localRgb);
+
+                    if (!$colorId) {
+                        continue;
+                    }
+
+                    if ($availableColors && !in_array($colorId, $availableColors)) {
+                        continue;
+                    }
+
+                    $differences[] = new ImageComparisonResultDifference($x + $config['offsetX'], $y + $config['offsetY'], $colorId);
                 }
             }
         }
 
-        return [
-            'matchingPixels'  => $matchingPixels,
-            'totalPixels'     => $totalPixels,
-            'differences'     => $differences,
-            'matchPercentage' => $totalPixels > 0 ? ($matchingPixels / $totalPixels) * 100 : 100.0,
-        ];
+        return new ImageComparisonResult($totalPixels, $matchingPixels, $differences);
     }
 
     private function isTransparent(array $rgba): bool
@@ -70,29 +72,23 @@ class ImageComparator
 
     private function colorsMatch(array $color1, array $color2): bool
     {
-        /*if ($color1['red'] !== 60 && $color1['green'] !== 60 && $color1['blue'] !== 60) {
-            return true;
-        }
-        */
-
         return $color1['red'] === $color2['red'] &&
             $color1['green'] === $color2['green'] &&
             $color1['blue'] === $color2['blue'] &&
             $color1['alpha'] === $color2['alpha'];
     }
 
-    private function createDifferenceRecord(int $x, int $y, array $localRgb, array $remoteRgb, array $config): array
+    private function getColorId(array $localRgb): ?int
     {
-        return [
-            'positionLocal'  => ['x' => $x, 'y' => $y],
-            'positionRemote' => ['x' => $x + $config['offsetX'], 'y' => $y + $config['offsetY']],
-            'colorLocal'     => $localRgb,
-            'colorRemote'    => $remoteRgb,
-        ];
-    }
+        if (null === $this->colors) {
+            $this->colors = Yaml::parseFile($this->pathService->getColorsConfigPath());
+        }
 
-    public function setMaxDifferencesToReport(int $maxDifferencesToReport): void
-    {
-        $this->maxDifferencesToReport = $maxDifferencesToReport;
+        $arrayKey = $localRgb['red'] . ',' . $localRgb['green'] . ',' . $localRgb['blue'];
+        if (isset($this->colors[$arrayKey])) {
+            return $this->colors[$arrayKey]['id'];
+        }
+
+        return null;
     }
 }

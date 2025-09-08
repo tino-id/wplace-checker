@@ -2,6 +2,7 @@
 
 namespace App\Commands;
 
+use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Image;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -14,11 +15,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 class DownloadImageCommand extends AbstractCommand
 {
     private TileDownloader $tileDownloader;
+    private PathService $pathService;
 
     public function __construct()
     {
         parent::__construct();
         $this->tileDownloader = new TileDownloader($this->imageService);
+        $this->pathService = new PathService();
     }
 
     protected function configure(): void
@@ -138,7 +141,7 @@ class DownloadImageCommand extends AbstractCommand
     private function saveImage(\GdImage $image): ?string
     {
         $filename = 'downloaded_image_' . date('Y-m-d_H-i-s') . '.png';
-        $filepath = __DIR__ . DS . '..' . DS . '..' . DS . $filename;
+        $filepath = $this->pathService->getOutputPath($filename);
 
         if (imagepng($image, $filepath)) {
             return $filename;

@@ -41,6 +41,11 @@ class PathService
         return $this->getConfigPath('colors.yaml');
     }
 
+    public function getProfilesConfigPath(): string
+    {
+        return $this->getConfigPath('profiles.yaml');
+    }
+
     public function getOutputPath(string $filename): string
     {
         return $this->buildPath($filename);

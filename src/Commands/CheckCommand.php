@@ -4,6 +4,7 @@ namespace App\Commands;
 
 use App\Image;
 use App\Pushover;
+use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -19,12 +20,14 @@ class CheckCommand extends AbstractCommand
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
     private ?Pushover       $pushover = null;
+    private PathService    $pathService;
 
     public function __construct()
     {
         parent::__construct();
         $this->tileDownloader  = new TileDownloader($this->imageService);
         $this->imageComparator = new ImageComparator();
+        $this->pathService     = new PathService();
     }
 
     protected function configure(): void
@@ -40,14 +43,14 @@ class CheckCommand extends AbstractCommand
         $projects     = $input->getArgument('projects');
         $sendPush     = $input->getOption('push');
 
-        $pushoverConfigFile = __DIR__ . DS . '..' . DS . '..' . DS . 'config' . DS . 'pushover.yaml';
+        $pushoverConfigPath = $this->pathService->getPushoverConfigPath();
 
-        if (file_exists($pushoverConfigFile) && $sendPush === 'true') {
-            $pushoverConfig = Yaml::parseFile($pushoverConfigFile);
+        if (file_exists($pushoverConfigPath) && $sendPush === 'true') {
+            $pushoverConfig = Yaml::parseFile($pushoverConfigPath);
             $this->pushover = new Pushover($pushoverConfig['token'], $pushoverConfig['user']);
         }
 
-        $projectDirs = glob(__DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . '*');
+        $projectDirs = glob($this->pathService->getProjectsPath() . '/*');
 
         foreach ($projectDirs as $projectDir) {
             $projectName = basename($projectDir);
@@ -109,32 +112,23 @@ class CheckCommand extends AbstractCommand
 
         $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage);
 
-        if (empty($result['differences'])) {
+        if ($result->matchingPixels === $result->totalPixels) {
             $this->info('No differences found');
 
             return;
         }
 
-        $this->info(sprintf(
-            'Matching Pixel: %d of %d (%.2f%%)',
-            $result['matchingPixels'],
-            $result['totalPixels'],
-            $result['matchPercentage']
-        ));
+        $resultMessage = sprintf(
+            'Matching Pixel: %s of %s (%.2f%%)',
+            $result->getMatchingPixelsFormatted(),
+            $result->getTotalPixelsFormatted(),
+            $result->getMatchPercentage(),
+        );
 
-        $this->error('First ' . count($result['differences']) . ' differences:');
-        foreach ($result['differences'] as $diff) {
-            $message =
-                'Local (' . $diff['positionLocal']['x'] . ',' . $diff['positionLocal']['y'] . '): ' .
-                $diff['colorLocal']['red'] . ',' . $diff['colorLocal']['green'] . ',' . $diff['colorLocal']['blue'] . ' / ' .
-                'Remote (' . $diff['positionRemote']['x'] . ',' . $diff['positionRemote']['y'] . '): ' .
-                $diff['colorRemote']['red'] . ',' . $diff['colorRemote']['green'] . ',' . $diff['colorRemote']['blue'];
-
-            $this->error($message);
-        }
+        $this->info($resultMessage);
 
         if ($this->pushover !== null) {
-            $this->sendPushover($localImage, $remoteImage, $config, $projectName, $result);
+            $this->sendPushover($localImage, $remoteImage, $config, $projectName, $resultMessage);
         }
 
         $localImage->destroy();
@@ -147,7 +141,7 @@ class CheckCommand extends AbstractCommand
         Image $remoteImage,
         array $config,
         string $projectName,
-        array $result
+        string $resultMessage
     ) {
         $croppedImage     = imagecreatetruecolor($localImage->getWidth(), $localImage->getHeight());
         $croppedImagePath = tempnam('/tmp', 'cropped-');
@@ -166,12 +160,7 @@ class CheckCommand extends AbstractCommand
         imagedestroy($croppedImage);
 
         $message = 'Project: ' . $projectName . "\n";
-        $message .= sprintf(
-            'Übereinstimmende Pixel: %d von %d (%.2f%%)',
-            $result['matchingPixels'],
-            $result['totalPixels'],
-            $result['matchPercentage']
-        );
+        $message .= $resultMessage;
 
         $this->pushover->send($message, $croppedImagePath);
 

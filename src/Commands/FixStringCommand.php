@@ -2,12 +2,14 @@
 
 namespace App\Commands;
 
+use App\Dtos\ImageComparisonResultDifference;
 use App\Pushover;
 use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
@@ -17,8 +19,9 @@ class FixStringCommand extends AbstractCommand
 {
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
-    private ?array          $colors   = null;
-    private PathService    $pathService;
+    private ?array          $colors  = null;
+    private ?array          $profile = null;
+    private PathService     $pathService;
 
     public function __construct()
     {
@@ -33,30 +36,42 @@ class FixStringCommand extends AbstractCommand
         $this
             ->addArgument('project', InputArgument::REQUIRED, 'project name')
             ->addArgument('pixelcount', InputArgument::REQUIRED, 'number of pixels to fix')
-        ;
+            ->addArgument('profile', InputArgument::OPTIONAL, 'user profile to use for filtering available colors');
     }
 
     public function __invoke(InputInterface $input, OutputInterface $output): int
     {
         $this->output = $output;
 
-        $project    = $input->getArgument('project');
-        $pixelCount = (int) $input->getArgument('pixelcount');
+        $project         = $input->getArgument('project');
+        $projectDir      = $this->pathService->getProjectPath($project);
+        $pixelCount      = (int)$input->getArgument('pixelcount');
+        $profile         = $input->getArgument('profile');
+        $availableColors = null;
 
-        $this->imageComparator->setMaxDifferencesToReport($pixelCount);
+        // load profile
+        if ($profile) {
+            $profiles = Yaml::parseFile($this->pathService->getProfilesConfigPath());
 
-        $projectDir = __DIR__ . DS . '..' . DS . '..' . DS . 'projects' . DS . $project;
+            if (!isset($profiles[$profile])) {
+                $this->error(sprintf('Profile "%s" not found', $profile));
+
+                return self::FAILURE;
+            }
+
+            $availableColors = explode(',', $profiles[$profile]['colors']);
+        }
 
         $output->writeln('');
         $this->info('Processing: <comment>' . $project . '</comment>');
-        $this->processProject($projectDir);
+        $this->processProject($projectDir, $pixelCount, $availableColors);
 
         $this->tileDownloader->clearCache();
 
         return self::SUCCESS;
     }
 
-    private function processProject(string $projectDir): void
+    private function processProject(string $projectDir, int $pixelCount, ?array $availableColors): void
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
@@ -73,58 +88,47 @@ class FixStringCommand extends AbstractCommand
         }
 
         try {
-            $localImage = $this->imageService->loadImageFromFile($config['image']);
+            $localImage  = $this->imageService->loadImageFromFile($config['image']);
             $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
         } catch (\Exception $e) {
             $this->error($e->getMessage());
+
             return;
         }
 
-        $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage);
+        $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage, $pixelCount,
+            $availableColors);
 
         $localImage->destroy();
         $remoteImage->destroy();
 
-        if (empty($result['differences'])) {
+        if ($result->matchingPixels === $result->totalPixels) {
             $this->info('No differences found');
+
+            return;
+        }
+
+        if (count($result->differences) === 0) {
+            $this->info('No pixels with available colors found');
 
             return;
         }
 
         $fix = ['coords' => [], 'colors' => []];
 
-        foreach ($result['differences'] as $diff) {
-            $color = $this->getColor(
-                $diff['colorLocal']['red'],
-                $diff['colorLocal']['green'],
-                $diff['colorLocal']['blue']
-            );
-
-            if ($color === null) {
-                $this->error('Could not find color for: ' . json_encode($diff['colorLocal']));
-                continue;
-            }
-
-            $fix['coords'][] = $diff['positionRemote']['x'] . ',' . $diff['positionRemote']['y'];
-            $fix['colors'][] = $color;
+        foreach ($result->differences as $diff) {
+            /** @var $diff ImageComparisonResultDifference */
+            $fix['coords'][] = $diff->getCoordinates();
+            $fix['colors'][] = $diff->color;
         }
 
-        $fixMessage = '{"colors": [' . implode(',', $fix['colors']) . '], "coords":[' . implode(',', $fix['coords']) . ']}';
+        $fixMessage = '{"colors": [' .
+            implode(',', $fix['colors']) .
+            '], "coords":[' .
+            implode(',', $fix['coords']) .
+            ']}';
+        
         $this->output->writeln('');
         $this->output->writeln($fixMessage);
     }
-
-    private function getColor(int $r, int $g, int $b): ?int
-    {
-        if (empty($this->colors)) {
-            $this->colors = Yaml::parseFile($this->pathService->getColorsConfigPath());
-        }
-
-        if (isset($this->colors[$r . ',' . $g . ',' . $b])) {
-            return $this->colors[$r . ',' . $g . ',' . $b]['id'];
-        }
-
-        return null;
-    }
-
 }
