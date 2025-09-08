@@ -3,6 +3,7 @@
 namespace App\Commands;
 
 use App\Pushover;
+use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -16,14 +17,15 @@ class FixStringCommand extends AbstractCommand
 {
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
-    private ?Pushover       $pushover = null;
     private ?array          $colors   = null;
+    private PathService    $pathService;
 
     public function __construct()
     {
         parent::__construct();
         $this->tileDownloader  = new TileDownloader($this->imageService);
         $this->imageComparator = new ImageComparator();
+        $this->pathService     = new PathService();
     }
 
     protected function configure(): void
@@ -115,11 +117,11 @@ class FixStringCommand extends AbstractCommand
     private function getColor(int $r, int $g, int $b): ?int
     {
         if (empty($this->colors)) {
-            $this->colors = Yaml::parseFile(__DIR__ . DS . '..' . DS . '..' . DS . 'config' . DS . 'colors.yaml');
+            $this->colors = Yaml::parseFile($this->pathService->getColorsConfigPath());
         }
 
         if (isset($this->colors[$r . ',' . $g . ',' . $b])) {
-            return $this->colors[$r . ',' . $g . ',' . $b];
+            return $this->colors[$r . ',' . $g . ',' . $b]['id'];
         }
 
         return null;

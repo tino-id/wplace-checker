@@ -1,10 +1,11 @@
-.idea
-vendor
+/.idea
+/vendor
 
-projects/*
-!projects/_example
+/projects/*
+!/projects/_example
 
-config/*
-!config/*.example.yaml
+/config/*
+!/config/*.example.yaml
+!/config/colors.yaml
 
 downloaded_image_*.png
