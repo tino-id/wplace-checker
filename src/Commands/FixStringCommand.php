@@ -96,8 +96,13 @@ class FixStringCommand extends AbstractCommand
             return;
         }
 
-        $result = $this->imageComparator->compareImages($config, $localImage, $remoteImage, $pixelCount,
-            $availableColors);
+        $result = $this->imageComparator->compareImages(
+            $config,
+            $localImage,
+            $remoteImage,
+            $pixelCount,
+            $availableColors
+        );
 
         $localImage->destroy();
         $remoteImage->destroy();
@@ -127,7 +132,7 @@ class FixStringCommand extends AbstractCommand
             '], "coords":[' .
             implode(',', $fix['coords']) .
             ']}';
-        
+
         $this->output->writeln('');
         $this->output->writeln($fixMessage);
     }

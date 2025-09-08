@@ -9,3 +9,4 @@
 !/config/colors.yaml
 
 downloaded_image_*.png
+.php-cs-fixer.cache
