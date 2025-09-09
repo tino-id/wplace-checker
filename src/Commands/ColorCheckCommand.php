@@ -43,14 +43,17 @@ class ColorCheckCommand extends AbstractCommand
         $project    = $input->getArgument('project');
         $projectDir = $this->pathService->getProjectPath($project);
 
-        $this->processProject($projectDir, $project);
+        $this->output->writeln('');
+        $this->info('Missing pixels in project "' . $project.'"');
+        $this->output->writeln('');
+        $this->processProject($projectDir);
 
         $this->tileDownloader->clearCache();
 
         return self::SUCCESS;
     }
 
-    private function processProject(string $projectDir, string $project): void
+    private function processProject(string $projectDir): void
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
@@ -118,13 +121,15 @@ class ColorCheckCommand extends AbstractCommand
 
         foreach ($colorsArray as $rgb => $colorData) {
             $colors[$colorData['id']] = $colorData;
+            $rgbArray = explode(',', $rgb);
+            $colors[$colorData['id']]['hex'] = sprintf("#%02x%02x%02x", $rgbArray[0], $rgbArray[1], $rgbArray[2]);
         }
 
         unset($colorsArray);
 
         $tableData            = [];
         $colorsWithoutProfile = 0;
-        // create message
+
         foreach ($missingColors as $color => $count) {
 
             $possibleProfiles = [];
@@ -144,8 +149,7 @@ class ColorCheckCommand extends AbstractCommand
             }
 
             $tableData[] = [
-                $colors[$color]['name'],
-                $color,
+                '<fg='.$colors[$color]['hex'].'>█</> '. $colors[$color]['name'].' (#'.$color.')',
                 new TableCell(number_format($count, 0, '', '.'), ['style' => new TableCellStyle(['align' => 'right'])]),
                 implode(', ', $possibleProfiles),
             ];
@@ -153,18 +157,14 @@ class ColorCheckCommand extends AbstractCommand
 
         $tableData[] = new TableSeparator();
         $tableData[] = [
-            new TableCell(count($missingColors) . ' diffrent colors', ['colspan' => 2]),
+            count($missingColors) . ' diffrent colors',
             new TableCell($result->getMissingPixelsFormatted(), ['style' => new TableCellStyle(['align' => 'right'])]),
             $colorsWithoutProfile . ' colors without profiles',
         ];
 
         $table = new Table($this->output);
-        $table->setHeaders(
-            [
-                [new TableCell('Project "' . $project.'"', ['colspan' => 4, 'style' => new TableCellStyle(['align' => 'center', 'fg' => 'green'])])],
-                [new TableCell('Color', ['colspan' => 2]), 'Pixel', 'Profiles'],
-            ]
-        );
+        $table->setHeaders(['Color', 'Pixel', 'Profiles']);
+        $table->setStyle('box');
         $table->setRows($tableData);
         $table->render();
     }
