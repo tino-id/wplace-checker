@@ -7,6 +7,10 @@ use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Helper\TableCell;
+use Symfony\Component\Console\Helper\TableCellStyle;
+use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -39,25 +43,17 @@ class ColorCheckCommand extends AbstractCommand
         $project    = $input->getArgument('project');
         $projectDir = $this->pathService->getProjectPath($project);
 
-        $output->writeln('');
-        $this->info('Processing: <comment>' . $project . '</comment>');
-        $this->processProject($projectDir);
+        $this->processProject($projectDir, $project);
 
         $this->tileDownloader->clearCache();
 
         return self::SUCCESS;
     }
 
-    private function processProject(string $projectDir): void
+    private function processProject(string $projectDir, string $project): void
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
-
-            if (!$config) {
-                $this->info('Project is disabled or invalid');
-
-                return;
-            }
         } catch (\Exception $e) {
             $this->error($e->getMessage());
 
@@ -91,7 +87,6 @@ class ColorCheckCommand extends AbstractCommand
 
 
         $missingColors = [];
-        $message = $result->getMissingPixelsFormatted().' missing pixels'.PHP_EOL;
 
         // get missing colors
         foreach ($result->differences as $diff) {
@@ -107,8 +102,8 @@ class ColorCheckCommand extends AbstractCommand
         arsort($missingColors);
 
         // load profiles
-        $profiles = [];
-        $profilesArray   = Yaml::parseFile($this->pathService->getProfilesConfigPath());
+        $profiles      = [];
+        $profilesArray = Yaml::parseFile($this->pathService->getProfilesConfigPath());
 
         foreach ($profilesArray as $profileName => $profileData) {
             $profiles[$profileName] = explode(',', $profileData['colors']);
@@ -119,7 +114,7 @@ class ColorCheckCommand extends AbstractCommand
 
         // load color config
         $colorsArray = Yaml::parseFile($this->pathService->getColorsConfigPath());
-        $colors = [];
+        $colors      = [];
 
         foreach ($colorsArray as $rgb => $colorData) {
             $colors[$colorData['id']] = $colorData;
@@ -127,25 +122,50 @@ class ColorCheckCommand extends AbstractCommand
 
         unset($colorsArray);
 
-
+        $tableData            = [];
+        $colorsWithoutProfile = 0;
         // create message
         foreach ($missingColors as $color => $count) {
-            $message .= $colors[$color]['name'].' (#'.$color.')';
+
+            $possibleProfiles = [];
 
             if ($colors[$color]['premium']) {
                 foreach ($profiles as $profileName => $profileColors) {
                     if (in_array($color, $profileColors)) {
-                        $message .= ' [' . $profileName . ']';
+                        $possibleProfiles[] = $profileName;
                     }
                 }
+
+                if (count($possibleProfiles) === 0) {
+                    $colorsWithoutProfile++;
+                }
             } else {
-                $message .= ' [free]';
+                $possibleProfiles[] = 'free';
             }
 
-            $message .= ': '. $count.PHP_EOL;
+            $tableData[] = [
+                $colors[$color]['name'],
+                $color,
+                new TableCell(number_format($count, 0, '', '.'), ['style' => new TableCellStyle(['align' => 'right'])]),
+                implode(', ', $possibleProfiles),
+            ];
         }
 
+        $tableData[] = new TableSeparator();
+        $tableData[] = [
+            new TableCell(count($missingColors) . ' diffrent colors', ['colspan' => 2]),
+            new TableCell($result->getMissingPixelsFormatted(), ['style' => new TableCellStyle(['align' => 'right'])]),
+            $colorsWithoutProfile . ' colors without profiles',
+        ];
 
-        $this->output->writeln($message);
+        $table = new Table($this->output);
+        $table->setHeaders(
+            [
+                [new TableCell('Project "' . $project.'"', ['colspan' => 4, 'style' => new TableCellStyle(['align' => 'center', 'fg' => 'green'])])],
+                [new TableCell('Color', ['colspan' => 2]), 'Pixel', 'Profiles'],
+            ]
+        );
+        $table->setRows($tableData);
+        $table->render();
     }
 }
