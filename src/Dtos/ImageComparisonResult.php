@@ -16,16 +16,26 @@ class ImageComparisonResult
 
     public function getTotalPixelsFormatted(): string
     {
-        return number_format($this->totalPixels, 0, '', '.');
+        return $this->format($this->totalPixels);
     }
 
     public function getMatchingPixelsFormatted(): string
     {
-        return number_format($this->matchingPixels, 0, '', '.');
+        return $this->format($this->matchingPixels);
+    }
+
+    public function getMissingPixelsFormatted(): string
+    {
+        return $this->format($this->totalPixels - $this->matchingPixels);
     }
 
     public function getMatchPercentage(): float
     {
         return $this->totalPixels > 0 ? ($this->matchingPixels / $this->totalPixels) * 100 : 100.0;
+    }
+
+    private function format(int $number): string
+    {
+        return number_format($number, 0, '', '.');
     }
 }
