@@ -17,14 +17,45 @@ class ImageComparator
         $this->pathService = new PathService();
     }
 
-    public function compareImages(array $config, Image $localImage, Image $remoteImage, int $pixelCount = 0, ?array $availableColors = null): ImageComparisonResult
+    public function compareImages(array $config, Image $localImage, Image $remoteImage, int $pixelCount = 0, ?array $availableColors = null, string $direction = 'top'): ImageComparisonResult
     {
         $matchingPixels = 0;
         $totalPixels    = 0;
         $differences    = [];
 
-        for ($x = 0; $x < $localImage->getWidth(); $x++) {
-            for ($y = 0; $y < $localImage->getHeight(); $y++) {
+        $width = $localImage->getWidth();
+        $height = $localImage->getHeight();
+
+        // Determine iteration ranges based on direction
+        switch ($direction) {
+            case 'bottom':
+                $yRange = range($height - 1, 0);
+                $xRange = range(0, $width - 1);
+                break;
+            case 'left':
+                $yRange = range(0, $height - 1);
+                $xRange = range(0, $width - 1);
+                $swapAxes = true;
+                break;
+            case 'right':
+                $yRange = range(0, $height - 1);
+                $xRange = range($width - 1, 0);
+                $swapAxes = true;
+                break;
+            default: // 'top'
+                $yRange = range(0, $height - 1);
+                $xRange = range(0, $width - 1);
+                break;
+        }
+
+        $outerRange = $swapAxes ?? false ? $xRange : $yRange;
+        $innerRange = $swapAxes ?? false ? $yRange : $xRange;
+
+        foreach ($outerRange as $outer) {
+            foreach ($innerRange as $inner) {
+                $x = ($swapAxes ?? false) ? $outer : $inner;
+                $y = ($swapAxes ?? false) ? $inner : $outer;
+
                 $localColor  = imagecolorat($localImage->getImage(), $x, $y);
                 $remoteColor = imagecolorat(
                     $remoteImage->getImage(),

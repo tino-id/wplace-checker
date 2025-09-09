@@ -32,6 +32,7 @@ class FixStringCommand extends AbstractCommand
         $this
             ->addArgument('project', InputArgument::REQUIRED, 'project name')
             ->addArgument('pixelcount', InputArgument::REQUIRED, 'number of pixels to fix')
+            ->addArgument('direction', InputArgument::OPTIONAL, 'direction to scan from (top, bottom, left, right)', 'left')
             ->addArgument('profile', InputArgument::OPTIONAL, 'user profile to use for filtering available colors');
     }
 
@@ -43,7 +44,14 @@ class FixStringCommand extends AbstractCommand
         $projectDir      = $this->pathService->getProjectPath($project);
         $pixelCount      = (int)$input->getArgument('pixelcount');
         $profile         = $input->getArgument('profile');
+        $direction       = $input->getArgument('direction');
         $availableColors = null;
+
+        $this->debug('project: ' . $project);
+        $this->debug('project dir: ' . $projectDir);
+        $this->debug('pixel count: ' . $pixelCount);
+        $this->debug('profile: ' . $profile);
+        $this->debug('direction: ' . $direction);
 
         // load profile
         if ($profile) {
@@ -60,14 +68,14 @@ class FixStringCommand extends AbstractCommand
 
         $output->writeln('');
         $this->info('Processing: <comment>' . $project . '</comment>');
-        $this->processProject($projectDir, $pixelCount, $availableColors);
+        $this->processProject($projectDir, $pixelCount, $availableColors, $direction);
 
         $this->tileDownloader->clearCache();
 
         return self::SUCCESS;
     }
 
-    private function processProject(string $projectDir, int $pixelCount, ?array $availableColors): void
+    private function processProject(string $projectDir, int $pixelCount, ?array $availableColors, string $direction): void
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
@@ -91,7 +99,8 @@ class FixStringCommand extends AbstractCommand
             $localImage,
             $remoteImage,
             $pixelCount,
-            $availableColors
+            $availableColors,
+            $direction
         );
 
         $localImage->destroy();
