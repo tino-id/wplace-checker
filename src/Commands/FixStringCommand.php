@@ -71,12 +71,6 @@ class FixStringCommand extends AbstractCommand
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
-
-            if (!$config) {
-                $this->info('Project is disabled or invalid');
-
-                return;
-            }
         } catch (\Exception $e) {
             $this->error($e->getMessage());
 

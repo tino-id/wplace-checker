@@ -95,7 +95,7 @@ class CheckCommand extends AbstractCommand
             return;
         }
 
-        if (!$config || ($config['disableCheck'] ?? false)) {
+        if ($config['disableCheck'] ?? false) {
             $this->info('Project is disabled or invalid');
 
             return;

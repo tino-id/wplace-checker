@@ -14,7 +14,7 @@ class ConfigService
         'image',
     ];
 
-    public function readProjectConfig(string $projectDir): ?array
+    public function readProjectConfig(string $projectDir): array
     {
         $configFile = $projectDir . DIRECTORY_SEPARATOR . 'config.yaml';
 
@@ -24,7 +24,7 @@ class ConfigService
 
         $config = Yaml::parseFile($configFile);
 
-        if (!$config) {
+        if (!$config || !is_array($config)) {
             throw new \RuntimeException("Could not parse config file: {$configFile}");
         }
 
