@@ -3,13 +3,11 @@
 namespace App\Commands;
 
 use App\Dtos\ImageComparisonResultDifference;
-use App\Pushover;
 use App\Services\PathService;
 use App\Services\TileDownloader;
 use App\Services\ImageComparator;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Yaml\Yaml;
@@ -19,8 +17,6 @@ class FixStringCommand extends AbstractCommand
 {
     private TileDownloader  $tileDownloader;
     private ImageComparator $imageComparator;
-    private ?array          $colors  = null;
-    private ?array          $profile = null;
     private PathService     $pathService;
 
     public function __construct()
