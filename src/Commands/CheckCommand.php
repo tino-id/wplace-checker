@@ -125,7 +125,7 @@ class CheckCommand extends AbstractCommand
             $result->getMatchPercentage(),
         );
 
-        $this->info($resultMessage);
+        $this->error($resultMessage);
 
         if ($this->pushover !== null) {
             $this->sendPushover($localImage, $remoteImage, $config, $projectName, $resultMessage);
