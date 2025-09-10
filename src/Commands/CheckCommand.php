@@ -119,7 +119,7 @@ class CheckCommand extends AbstractCommand
         }
 
         $resultMessage = sprintf(
-            'Matching Pixel: %s of %s (%.2f%%)',
+            'Matching Pixels: %s of %s (%.2f%%)',
             $result->getMatchingPixelsFormatted(),
             $result->getTotalPixelsFormatted(),
             $result->getMatchPercentage(),

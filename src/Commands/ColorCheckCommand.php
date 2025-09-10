@@ -43,9 +43,7 @@ class ColorCheckCommand extends AbstractCommand
         $project    = $input->getArgument('project');
         $projectDir = $this->pathService->getProjectPath($project);
 
-        $this->output->writeln('');
         $this->info('Missing pixels in project "' . $project.'"');
-        $this->output->writeln('');
         $this->processProject($projectDir);
 
         $this->tileDownloader->clearCache();
@@ -87,6 +85,15 @@ class ColorCheckCommand extends AbstractCommand
 
             return;
         }
+
+        $resultMessage = sprintf(
+            'Matching Pixels: %s of %s (%.2f%%)',
+            $result->getMatchingPixelsFormatted(),
+            $result->getTotalPixelsFormatted(),
+            $result->getMatchPercentage(),
+        );
+        $this->info($resultMessage);
+        $this->info(number_format(($result->totalPixels - $result->matchingPixels)/2/60/24, 2, ',', '.').' days left');
 
 
         $missingColors = [];
@@ -157,7 +164,7 @@ class ColorCheckCommand extends AbstractCommand
 
         $tableData[] = new TableSeparator();
         $tableData[] = [
-            count($missingColors) . ' diffrent colors',
+            count($missingColors) . ' different colors',
             new TableCell($result->getMissingPixelsFormatted(), ['style' => new TableCellStyle(['align' => 'right'])]),
             $colorsWithoutProfile . ' colors without profiles',
         ];
