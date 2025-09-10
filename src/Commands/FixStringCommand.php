@@ -53,6 +53,12 @@ class FixStringCommand extends AbstractCommand
         $this->debug('profile: ' . $profile);
         $this->debug('direction: ' . $direction);
 
+        if (!in_array($direction, ['top', 'bottom', 'left', 'right'])) {
+            $this->error('invalid direction "'.$direction.'"');
+
+            return self::FAILURE;
+        }
+
         // load profile
         if ($profile) {
             $profiles = Yaml::parseFile($this->pathService->getProfilesConfigPath());
@@ -64,11 +70,32 @@ class FixStringCommand extends AbstractCommand
             }
 
             $availableColors = explode(',', $profiles[$profile]['colors']);
+
+            $this->debug('available colors: '.implode(', ', $availableColors));
         }
 
         $output->writeln('');
-        $this->info('Processing: <comment>' . $project . '</comment>');
+
+        $message = 'fix project <comment>' . $project . '</comment>';
+        if ($profile) {
+            $message .= ' with profile <comment>' . $profile . '</comment>';
+        }
+        $message .= ' with <comment>'.$pixelCount.' pixel</comment> from <comment>'.$direction.'</comment>';
+
+        $this->info($message);
         $this->processProject($projectDir, $pixelCount, $availableColors, $direction);
+
+
+        if ($this->output->isDebug()) {
+            $cacheStats = $this->tileDownloader->getCacheStats();
+            $this->debug(
+                sprintf(
+                    'Cache-Stats: %d Tiles, %.2f MB',
+                    $cacheStats['cached_tiles'],
+                    $cacheStats['cache_size_bytes'] / 1024 / 1024
+                )
+            );
+        }
 
         $this->tileDownloader->clearCache();
 
