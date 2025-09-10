@@ -1,20 +1,27 @@
 # wplace-checker
 
-Ein PHP-basiertes Tool zur Überwachung von Kunstwerken auf der wplace.live Plattform. Das Tool kann Bilder von Tile-Servern herunterladen, mit lokalen Referenzbildern vergleichen und bei Abweichungen Benachrichtigungen senden.
+This software is a PHP-based command-line tool specifically developed for monitoring and maintaining pixel artworks on the collaborative platform [wplace.live](https://wplace.live).
 
-## Voraussetzungen
+The tool's core function is to compare local reference images of artworks with their current state on the live platform. If any deviations or damage are detected, the program can automatically send a notification via Pushover to inform the user.
 
-- PHP 8.0 oder höher
-- GD-Extension für PHP
-- Composer (für Abhängigkeiten)
+To repair damaged areas, the tool provides a command that determines the exact coordinates and color values ​​of the faulty pixels and outputs them in a format compatible with the wplace.live API.
+
+There are also auxiliary commands, such as the ability to download specific sections of the online canvas. Another useful feature is color analysis, which can be used to check a reference image for colors missing from the official color palette, facilitating the creation and adaptation of artworks.
+
+## Prerequisites
+
+- PHP 8.0 or higher
+- GD Extension for PHP
+- Curl Extension for PHP
+- Composer (for dependencies)
 
 ## Installation
 
-1. Repository klonen
-2. Abhängigkeiten installieren: `composer install`
-3. Konfiguration anpassen (siehe unten)
+1.  Clone the repository
+2.  Install dependencies: `composer install`
+3.  Add projects
 
-## Verfügbare Commands
+## Available Commands
 
 ### 1. Check Command
 
@@ -22,20 +29,20 @@ Ein PHP-basiertes Tool zur Überwachung von Kunstwerken auf der wplace.live Plat
 php run.php check [project]
 ```
 
-Überprüft alle Projekte im `projects/` Verzeichnis auf Unterschiede zwischen lokalen Referenzbildern und den aktuellen Tiles von wplace.live.
+Checks all projects in the `projects/` directory for differences between local reference images and the current tiles from wplace.live.
 
-**Parameter:**
-- `project`: Name des zu überprüfenden Projekts (optional, prüft alle wenn nicht angegeben)
+**Parameters:**
+- `project`: Name of the project to be checked (optional, checks all if not specified)
 
-**Beispiel:**
+**Example:**
 ```bash
-php run.php color-check projekt1
+php run.php check my-cool-project
 ```
 
-**Funktionen:**
-- Lädt automatisch alle benötigten Tiles für jedes Projekt
-- Vergleicht heruntergeladene Tiles mit lokalen Referenzbildern
-- Sendet optional Pushover-Benachrichtigungen bei gefundenen Unterschieden
+**Functions:**
+- Automatically downloads all necessary tiles for each project
+- Compares downloaded tiles with local reference images
+- Optionally sends Pushover notifications if differences are found
 
 ### 2. Color Check Command
 
@@ -43,19 +50,19 @@ php run.php color-check projekt1
 php run.php color-check [project]
 ```
 
-Überprüft, welche Farben im Referenzbild fehlen.
+Checks which colors are missing.
 
-**Parameter:**
-- `project`: Name des zu überprüfenden Projekts
+**Parameters:**
+- `project`: Name of the project to be checked
 
-**Beispiel:**
+**Example:**
 ```bash
-php run.php color-check projekt1
+php run.php color-check project1
 ```
 
-**Funktionen:**
-- Analysiert alle Farben im Referenzbild
-- Zeigt fehlende Farbdefinitionen in tabellarischer Form
+**Functions:**
+- Analyzes all colors in the reference image
+- Shows missing color definitions in a tabular format
 
 ### 3. Download Image Command
 
@@ -63,25 +70,25 @@ php run.php color-check projekt1
 php run.php download-image [tileX] [tileY] [pixelX] [pixelY] [width] [height]
 ```
 
-Lädt Tiles von wplace.live herunter und schneidet einen spezifischen Bildbereich aus.
+Downloads tiles from wplace.live and crops a specific image area.
 
-**Parameter:**
-- `tileX`: Start-Tile X-Koordinate
-- `tileY`: Start-Tile Y-Koordinate  
-- `pixelX`: Start-Pixel X-Koordinate innerhalb des ersten Tiles
-- `pixelY`: Start-Pixel Y-Koordinate innerhalb des ersten Tiles
-- `width`: Breite des auszuschneidenden Bereichs in Pixeln
-- `height`: Höhe des auszuschneidenden Bereichs in Pixeln
+**Parameters:**
+- `tileX`: Start tile X-coordinate
+- `tileY`: Start tile Y-coordinate
+- `pixelX`: Start pixel X-coordinate within the first tile
+- `pixelY`: Start pixel Y-coordinate within the first tile
+- `width`: Width of the area to be cropped in pixels
+- `height`: Height of the area to be cropped in pixels
 
-**Beispiel:**
+**Example:**
 ```bash
 php run.php download-image 10 15 250 300 500 400
 ```
 
-**Funktionen:**
-- Lädt automatisch alle benötigten Tiles basierend auf den angegebenen Koordinaten
-- Erhält Transparenz der Original-Tiles
-- Speichert das Ergebnis als PNG im Projekt-Root-Verzeichnis
+**Functions:**
+- Automatically downloads all necessary tiles based on the specified coordinates
+- Preserves the transparency of the original tiles
+- Saves the result as a PNG in the project root directory
 
 ### 4. Fix String Command
 
@@ -89,63 +96,67 @@ php run.php download-image 10 15 250 300 500 400
 php run.php fix-string [project] [pixelcount] [direction] [profile]
 ```
 
-Gibt Koordinaten und Farben für den POST-Request an wplace.live an um das Artwork zu reparieren.
+Provides coordinates and colors for the POST request to wplace.live to repair/build the artwork.
 
-**Parameter:**
-- `project`: Name des zu reparierenden Projekts
-- `pixelcount`: Maximale Anzahl der Pixel, die repariert werden sollen
-- `direction`: Richtung für das Scannen der Pixel (top, bottom, left, right) - Standard: "left"
-- `profile`: Benutzerprofil zur Filterung verfügbarer Farben (optional)
+**Parameters:**
+- `project`: Name of the project to be repaired
+- `pixelcount`: Maximum number of pixels to be repaired
+- `direction`: Direction for scanning the pixels (top, bottom, left, right) - Default: "left"
+- `profile`: User profile for filtering available colors (optional)
 
-**Beispiele:**
+**Examples:**
 ```bash
-# Grundlegende Reparatur von 100 Pixeln von links
-php run.php fix-string projekt1 100
+# Basic repair of 100 pixels from the left
+php run.php fix-string project1 100
 
-# Reparatur von oben mit spezifischem Profil
-php run.php fix-string projekt1 50 top meinprofil
+# Repair from the top with a specific profile
+php run.php fix-string project1 50 top myprofile
 ```
 
-**Funktionen:**
-- Vergleicht Referenzbild mit aktuellem Zustand
-- Scannt Pixel in der gewählten Richtung für optimale Reparatur-Reihenfolge
-- Filtert verfügbare Farben basierend auf Benutzerprofil
-- Generiert JSON-Output für wplace.live API
+**Functions:**
+- Compares the reference image with the current state
+- Scans pixels in the selected direction for an optimal repair sequence
+- Filters available colors based on the user profile
+- Generates JSON output for the wplace.live API
 
-## Konfiguration
+## Configuration
 
-### Projekt-Konfiguration
+### Project Configuration
 
-Eine Beispielkonfiguration befindet sich im `projects/_example` Verzeichnis.
+An example configuration is located in the `projects/_example` directory.
 
-Jedes Projekt benötigt eine `config.yaml` Datei mit folgenden Parametern:
+Each project requires a PNG file and a `config.yaml` file with the following parameters:
 
 ```yaml
-tileX: 123           # Start-Tile X-Koordinate
-tileY: 456           # Start-Tile Y-Koordinate
-offsetX: 100         # Pixel-Offset X innerhalb des Tiles
-offsetY: 200         # Pixel-Offset Y innerhalb des Tiles
-image: "artwork.png" # Name des Referenzbildes im Projektverzeichnis
-disableCheck: false  # Optional: Prüfung deaktivieren
+tileX: 123           # Start tile X-coordinate
+tileY: 456           # Start tile Y-coordinate
+offsetX: 100         # Pixel offset X within the tile
+offsetY: 200         # Pixel offset Y within the tile
+image: "artwork.png" # Name of the reference image in the project directory
+disableCheck: false  # Optional: Disable check in the Check Command
 ```
 
-### Pushover-Benachrichtigungen (Optional)
+The values for tile and offset can be taken from [Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble), for example.
 
-Erstelle eine `config/pushover.yaml` Datei für Benachrichtigungen:
+The PNG file must be the correct size and color palette. Transparent pixels are ignored. The [Wplace Color Converter](https://pepoafonso.github.io/color_converter_wplace/index.html) can be used as a tool.
+
+### Pushover Notifications (Optional)
+
+Create a `config/pushover.yaml` file for notifications:
 ```yaml
-token: "dein-pushover-app-token"
-user: "dein-pushover-user-key"
+token: "your-pushover-app-token"
+user: "your-pushover-user-key"
 ```
 
-### Projekt-Struktur
+### Project Structure
 
 ```
 wplace-checker/
 - config/
-- - colors.yaml       # Farbdefinitionen
-- - profiles.yaml     # Profile (optional)
-- - pushover.yaml     # Pushover-Konfiguration (optional)
-- projects/           # Projekt-Verzeichnis
+- - colors.yaml       # Color definitions
+- - profiles.yaml     # Profiles (optional)
+- - pushover.yaml     # Pushover configuration (optional)
+- projects/           # Project directory
 - - project1/
 - - - config.yaml
 - - - artwork.png
@@ -153,15 +164,15 @@ wplace-checker/
 - - - config.yaml
 - - - artwork.png
 - src/
-- - Commands/         # Quellcode der Commands
-- - Services/         # Servies
+- - Commands/         # Source code of the commands
+- - Services/         # Services
 - - ...
-- run.php             # Start CLI Script
+- run.php             # Start CLI script
 ```
 
-## Debug-Modus
+## Debug Mode
 
-Für detaillierte Ausgaben verwende den Debug-Modus mit `-vvv` am Ende eines Commands.
+For detailed output, use the debug mode with `-vvv` at the end of a command.
 
 ```bash
 php run.php check -vvv
