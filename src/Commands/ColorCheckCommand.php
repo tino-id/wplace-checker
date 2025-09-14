@@ -43,7 +43,6 @@ class ColorCheckCommand extends AbstractCommand
         $project    = $input->getArgument('project');
         $projectDir = $this->pathService->getProjectPath($project);
 
-        $this->info('Missing pixels in project "' . $project.'"');
         $this->processProject($projectDir);
 
         $this->tileDownloader->clearCache();
@@ -55,13 +54,6 @@ class ColorCheckCommand extends AbstractCommand
     {
         try {
             $config = $this->configService->readProjectConfig($projectDir);
-        } catch (\Exception $e) {
-            $this->error($e->getMessage());
-
-            return;
-        }
-
-        try {
             $localImage  = $this->imageService->loadImageFromFile($config['image']);
             $remoteImage = $this->tileDownloader->createRemoteImage($localImage, $config);
         } catch (\Exception $e) {
@@ -86,19 +78,15 @@ class ColorCheckCommand extends AbstractCommand
             return;
         }
 
-        $resultMessage = sprintf(
+        $this->info(sprintf(
             'Matching Pixels: %s of %s (%.2f%%)',
             $result->getMatchingPixelsFormatted(),
             $result->getTotalPixelsFormatted(),
             $result->getMatchPercentage(),
-        );
-        $this->info($resultMessage);
-        $this->info(number_format(($result->totalPixels - $result->matchingPixels)/2/60/24, 2, ',', '.').' days left');
+        ));
 
-
+        // count missing colors
         $missingColors = [];
-
-        // get missing colors
         foreach ($result->differences as $diff) {
             /** @var $diff ImageComparisonResultDifference */
 
@@ -110,6 +98,7 @@ class ColorCheckCommand extends AbstractCommand
         }
 
         arsort($missingColors);
+
 
         // load profiles
         $profiles      = [];
@@ -134,17 +123,23 @@ class ColorCheckCommand extends AbstractCommand
 
         unset($colorsArray);
 
+
         $tableData            = [];
         $colorsWithoutProfile = 0;
+        $pixelsForProfiles = [];
 
         foreach ($missingColors as $color => $count) {
-
             $possibleProfiles = [];
 
             if ($colors[$color]['premium']) {
                 foreach ($profiles as $profileName => $profileColors) {
+                    if (!isset($pixelsForProfiles[$profileName])) {
+                        $pixelsForProfiles[$profileName] = 0;
+                    }
+
                     if (in_array($color, $profileColors)) {
                         $possibleProfiles[] = $profileName;
+                        $pixelsForProfiles[$profileName] += $count;
                     }
                 }
 
@@ -152,7 +147,12 @@ class ColorCheckCommand extends AbstractCommand
                     $colorsWithoutProfile++;
                 }
             } else {
+                if (!isset($pixelsForProfiles['free'])) {
+                    $pixelsForProfiles['free'] = 0;
+                }
+
                 $possibleProfiles[] = 'free';
+                $pixelsForProfiles['free'] += $count;
             }
 
             $tableData[] = [
@@ -174,5 +174,27 @@ class ColorCheckCommand extends AbstractCommand
         $table->setStyle('box');
         $table->setRows($tableData);
         $table->render();
+
+
+
+        arsort($pixelsForProfiles);
+        $tableData = [];
+        foreach ($pixelsForProfiles as $profileName => $pixels) {
+            $tableData[] = [
+                $profileName,
+                new TableCell(number_format($pixels, 0, '', '.'), ['style' => new TableCellStyle(['align' => 'right'])]),
+            ];
+        }
+
+        $table = new Table($this->output);
+        $table->setHeaders(['Profile', 'Pixel']);
+        $table->setStyle('box');
+        $table->setRows($tableData);
+        $table->render();
+
+        if (count($profiles) > 0) {
+            $this->info(number_format(($result->totalPixels - $result->matchingPixels)/2/60/24/count($profiles), 2, ',', '.').' days left');
+
+        }
     }
 }
